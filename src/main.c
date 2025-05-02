@@ -25,6 +25,8 @@ void app_main(void)
         return;
     }
 
+    // Wait for the SPP connection to be established
+    ESP_LOGI(TAG, "Waiting for SPP connection...");
     xQueueReceive(SPPconQueue, &fd, portMAX_DELAY);
    
     /* Other SW initialization / startup here when the SPP is connected */
