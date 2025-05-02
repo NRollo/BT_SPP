@@ -8,7 +8,6 @@
 #define TAG "MAIN"
 
 extern esp_err_t spp_server_init(void);
-extern uint32_t ConHandle;
 
 QueueHandle_t SPPconQueue;
 
