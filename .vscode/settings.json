@@ -1,5 +1,8 @@
 {
     "files.associations": {
-        "esp_gap_bt_api.h": "c"
+        "esp_gap_bt_api.h": "c",
+        "unistd.h": "c",
+        "stddef.h": "c",
+        "_types.h": "c"
     }
 }

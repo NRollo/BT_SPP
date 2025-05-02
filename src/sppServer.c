@@ -13,6 +13,7 @@
 #include "esp_gap_bt_api.h"
 #include "esp_bt_device.h"
 #include "esp_spp_api.h"
+#include <sys/unistd.h>
 
 #define SPP_TAG "SPP_SRV"
 #define SPP_SERVER_NAME "SPP_BT_MONITOR"
@@ -27,6 +28,21 @@ static const esp_spp_sec_t sec_mask = ESP_SPP_SEC_AUTHENTICATE;
 static const esp_spp_role_t role_slave = ESP_SPP_ROLE_SLAVE;
 
 uint32_t ConHandle = 0;
+static char stdout_buf[128];
+static FILE *saved_f = NULL;
+
+static int app_printf(void *cookie, const char *data, int size)
+{
+    if (ConHandle != 0)
+    {
+        if (esp_spp_write(ConHandle, size, (uint8_t*) data) != ESP_OK)
+        {
+            esp_spp_write(ConHandle, 18, (uint8_t*) "data send failed\r\n");
+            return -1;
+        }
+    }
+    return size;
+}
 
 static char *bda2str(uint8_t * bda, char *str, size_t size)
 {
@@ -39,6 +55,7 @@ static char *bda2str(uint8_t * bda, char *str, size_t size)
             p[0], p[1], p[2], p[3], p[4], p[5]);
     return str;
 }
+
 static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
 {
     char bda_str[18] = {0};
@@ -59,9 +76,15 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         ESP_LOGI(SPP_TAG, "ESP_SPP_OPEN_EVT");
         break;
     case ESP_SPP_CLOSE_EVT:
-        //ESP_LOGI(SPP_TAG, "ESP_SPP_CLOSE_EVT status:%d handle:%"PRIu32" close_by_remote:%d", param->close.status,
-        //         param->close.handle, param->close.async);
+        fclose(_GLOBAL_REENT->_stdout);
+        _GLOBAL_REENT->_stdout = fopen("/dev/uart/0", "w");
+        setvbuf(_GLOBAL_REENT->_stdout, stdout_buf, _IOLBF, 128);
+        ESP_LOGI(SPP_TAG, "stdout is now back to normal");
+        fflush(_GLOBAL_REENT->_stdout);
+
         ConHandle = 0;
+        ESP_LOGI(SPP_TAG, "ESP_SPP_CLOSE_EVT status:%d handle:%"PRIu32" close_by_remote:%d", param->close.status, param->close.handle, param->close.async);
+
         break;
     case ESP_SPP_START_EVT:
         if (param->start.status == ESP_SPP_SUCCESS) {
@@ -102,7 +125,17 @@ static void esp_spp_cb(esp_spp_cb_event_t event, esp_spp_cb_param_t *param)
         ESP_LOGI(SPP_TAG, "ESP_SPP_SRV_OPEN_EVT status:%d handle:%"PRIu32", rem_bda:[%s]", param->srv_open.status,
                  param->srv_open.handle, bda2str(param->srv_open.rem_bda, bda_str, sizeof(bda_str)));
         ConHandle = param->srv_open.handle;
+
+        // switch stdout to SPP via app_printf
+        saved_f = _GLOBAL_REENT->_stdout;
+        fflush(_GLOBAL_REENT->_stdout);
+        fclose(_GLOBAL_REENT->_stdout);
+        _GLOBAL_REENT->_stdout = fwopen(NULL, &app_printf);
+        setvbuf(_GLOBAL_REENT->_stdout, stdout_buf, _IOLBF, 128);
+        // Log data will now be sent to the SPP connection
+
         xQueueSend(SPPconQueue,  &param->srv_open.fd, pdMS_TO_TICKS(100));
+
         break;
     case ESP_SPP_SRV_STOP_EVT:
         ESP_LOGI(SPP_TAG, "ESP_SPP_SRV_STOP_EVT");
