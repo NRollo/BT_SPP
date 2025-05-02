@@ -13,6 +13,9 @@ QueueHandle_t SPPconQueue;
 
 void app_main(void)
 {
+    // Just to wait for a slow monitor to start (i.e. Platformio)
+    vTaskDelay(pdMS_TO_TICKS(10000));
+
     SPPconQueue = xQueueCreate(2, sizeof(int));
     int fd = 0;
 
@@ -23,5 +26,6 @@ void app_main(void)
     }
 
     xQueueReceive(SPPconQueue, &fd, portMAX_DELAY);
-    ESP_LOGI(TAG, "stdout now switched to SPP connection");    
+   
+    /* Other SW initialization / startup here when the SPP is connected */
 }
